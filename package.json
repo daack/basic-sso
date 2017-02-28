@@ -1,0 +1,30 @@
+{
+  "name": "basic-sso",
+  "version": "0.1.0",
+  "description": "Basic authentication mechanism for Single sign-on",
+  "main": "sso.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/daack/basic-sso.git"
+  },
+  "keywords": [
+    "sso",
+    "authentication",
+    "express"
+  ],
+  "author": "Matteo Maselli <mat.maselli@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/daack/basic-sso/issues"
+  },
+  "homepage": "https://github.com/daack/basic-sso#readme",
+  "dependencies": {
+    "atob": "^2.0.3",
+    "btoa": "^1.1.2",
+    "cookies": "^0.7.0",
+    "keygrip": "^1.0.1"
+  }
+}
