@@ -1,7 +1,10 @@
 'use strict'
 
-const btoa = require('btoa')
+const http = require('http')
+const url = require('url')
 const querystring = require('querystring')
+const btoa = require('btoa')
+const request = require('request')
 
 function Client(crypter, opts) {
   if (!(this instanceof Client)) {
@@ -11,9 +14,30 @@ function Client(crypter, opts) {
   this.app = btoa(opts.app)
   this.verify = opts.verify
   this.server = opts.server
-  this.secure = opts.secure || false
+  this.serverPublicKey = null
 
   this.crypter = crypter
+
+  this.registration(opts)
+}
+
+Client.prototype.registration = function(opts) {
+  request.post({
+    url: url.format({
+      protocol: this.server.protocol || 'http:',
+      hostname: this.server.host,
+      port: this.server.port || 80,
+      pathname: this.server.register
+    }),
+    form: {
+      sign: this.crypter.encrypt(opts.app),
+      public_key: this.crypter.getPublicKey()
+    }
+  }, (err, httpResponse, body) => {
+    if (!err && httpResponse.statusCode == 200) {
+      this.setServerPublicKey(JSON.parse(body).public_key)
+    }
+  })
 }
 
 Client.prototype.logIn = function(res) {
@@ -25,11 +49,13 @@ Client.prototype.logIn = function(res) {
     query['verify'] = this.verify
   }
 
-  if (this.secure) {
-    query['public_key'] = this.crypter.getPublicKey()
-  }
-
-  res.redirect(this.server + '?' + querystring.stringify(query))
+  res.redirect(url.format({
+    protocol: this.server.protocol || 'http:',
+    hostname: this.server.host,
+    port: this.server.port || 80,
+    pathname: this.server.auth,
+    search: querystring.stringify(query)
+  }))
 }
 
 Client.prototype.user = function() {
@@ -46,10 +72,14 @@ Client.prototype.user = function() {
       return next()
     }
 
-    req.user = this.crypter.decrypt(query.user, query.public_key)
+    req.user = this.crypter.decrypt(query.user, this.serverPublicKey)
 
     next()
   }
+}
+
+Client.prototype.setServerPublicKey = function(key) {
+  this.serverPublicKey = key
 }
 
 module.exports = Client

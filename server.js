@@ -94,6 +94,31 @@ Server.prototype.logIn = function(strategy, opts) {
   }
 }
 
+Server.prototype.registration = function() {
+  return (req, res, next) => {
+    const body = req.body || {}
+
+    const public_key = body.public_key
+    const sign = body.sign
+
+    if (!(public_key && sign)) {
+      return res.status(404).end()
+    }
+
+    const app_name = this.crypter.decrypt(sign)
+
+    if (this.apps[app_name]) {
+      this.apps[app_name]['public_key'] = decodeURIComponent(public_key)
+
+      return res.status(200).json({
+        public_key: this.crypter.getPublicKey()
+      })
+    }
+
+    res.status(401).end('Unauthorized')
+  }
+}
+
 Server.prototype.add = function(app, info) {
   if (typeof app != 'object') {
     let tmp = {}
@@ -173,14 +198,8 @@ Server.prototype.send = function(res, opts) {
   }
 
   let query = {
-    verify: opts.params.verify || ''
-  }
-
-  if (opts.params.public_key) {
-    query['user'] = this.crypter.encrypt(serialized_user, decodeURIComponent(opts.params.public_key))
-    query['public_key'] = this.crypter.getPublicKey()
-  } else {
-    query['user'] = this.crypter.encrypt(serialized_user)
+    verify: opts.params.verify || '',
+    user: this.crypter.encrypt(serialized_user, info.public_key)
   }
 
   res.redirect(info.redirect + '?' + querystring.stringify(query))
