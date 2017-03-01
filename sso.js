@@ -1,23 +1,24 @@
 'use strict'
 
+const Dh = require('diffie-hellman-key-exchange')
+
 const Server = require('./server')
 const Client = require('./client')
-const Crypter = require('./lib/crypter')
 
-function Sso(secret) {
-  if (!(this instanceof Sso)) {
-    return new Sso(secret)
-  }
+module.exports = function(app, dh_opts) {
+	const dhke = Dh(app, dh_opts)
 
-  this.crypter = Crypter(secret)
+	return {
+		server: function(opts) {
+			return new Server(dhke, opts)
+		},
+		client: function(opts) {
+			dhke.addApp(opts.server.name, {
+				host: opts.server.host,
+				port: opts.server.dh_port
+			})
+
+			return new Client(app, opts, dhke)
+		}
+	}
 }
-
-Sso.prototype.server = function(opts) {
-  return Server(this.crypter, opts)
-}
-
-Sso.prototype.client = function(opts) {
-  return Client(this.crypter, opts)
-}
-
-module.exports = Sso

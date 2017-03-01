@@ -2,40 +2,33 @@
 
 const atob = require('atob')
 const querystring = require('querystring')
+
 const Cookie = require('./lib/cookie')
 
-function Server(crypter, opts) {
+function Server(dhke, opts) {
   if (!(this instanceof Server)) {
-    return new Server(crypter, opts)
+    return new Server(dhke, opts)
   }
 
-  this.opts = opts
+  this.dhke = dhke
+  this.cookie = Cookie(opts.cookie.name || 'sso_signed', {
+    secret: opts.cookie.secret,
+    crypter: this.dhke.crypter,
+    keylist: opts.cookie.keylist
+  })
 
-  this.cookie_name = opts.cookie.name || 'sso_signed'
-  this.loginPath = opts.loginPath || '/login'
-
-  this.apps = {}
   this.strategies = {}
+  this.apps = {}
 
   this.serializer = () => { throw new Error('serializeUser not defined') }
   this.deserializer = () => { throw new Error('deserializeUser not defined') }
   this.authorizator = () => { throw new Error('authorizeUser not defined') }
-
-  this.crypter = crypter
-}
-
-Server.prototype.cookieParser = function() {
-  return (req, res, next) => {
-    this.cookie = Cookie(req, res, {
-      crypter: this.crypter,
-      keylist: this.opts.cookie.keylist
-    })
-    next()
-  }
 }
 
 Server.prototype.authenticate = function() {
   return (req, res, next) => {
+    this.cookie.initializeRequest(req, res)
+
     const query = req.query || {}
 
     if (!query.app) {
@@ -45,7 +38,9 @@ Server.prototype.authenticate = function() {
     const app = atob(decodeURIComponent(query.app))
 
     this.getAuthenticatedUser(app, (err, user) => {
-      if (err) return res.redirect(this.loginPath + '?' + querystring.stringify(query))
+      if (err || !user) {
+        return next()
+      }
 
       this.send(res, {
         app: app,
@@ -66,6 +61,8 @@ Server.prototype.logIn = function(strategy, opts) {
   opts = opts || {}
 
   return (req, res, next) => {
+    this.cookie.initializeRequest(req, res)
+
     const body = req.body || {}
     const app = atob(decodeURIComponent(body.app))
 
@@ -80,7 +77,7 @@ Server.prototype.logIn = function(strategy, opts) {
       this.serializer.call(this, user, (err, serialized) => {
         if (err) return next(err)
 
-        this.cookie.set(this.cookie_name, serialized)
+        this.cookie.set(serialized)
 
         this.authorizator.call(this, user, app, (err, user) => {
           this.send(res, {
@@ -94,32 +91,7 @@ Server.prototype.logIn = function(strategy, opts) {
   }
 }
 
-Server.prototype.registration = function() {
-  return (req, res, next) => {
-    const body = req.body || {}
-
-    const public_key = body.public_key
-    const sign = body.sign
-
-    if (!(public_key && sign)) {
-      return res.status(404).end()
-    }
-
-    const app_name = this.crypter.decrypt(sign)
-
-    if (this.apps[app_name]) {
-      this.apps[app_name]['public_key'] = decodeURIComponent(public_key)
-
-      return res.status(200).json({
-        public_key: this.crypter.getPublicKey()
-      })
-    }
-
-    res.status(401).end('Unauthorized')
-  }
-}
-
-Server.prototype.add = function(app, info) {
+Server.prototype.addApp = function(app, info) {
   if (typeof app != 'object') {
     let tmp = {}
     tmp[app] = info
@@ -139,8 +111,14 @@ Server.prototype.add = function(app, info) {
   return this
 }
 
-Server.prototype.use = function(strategy, cb) {
+Server.prototype.strategy = function(strategy, cb) {
   this.strategies[strategy] = cb
+
+  return this
+}
+
+Server.prototype.authorizeUser = function(cb) {
+  this.authorizator = cb
 
   return this
 }
@@ -157,49 +135,36 @@ Server.prototype.deserializeUser = function(cb) {
   return this
 }
 
-Server.prototype.authorizeUser = function(cb) {
-  this.authorizator = cb
-
-  return this
-}
-
 Server.prototype.getAuthenticatedUser = function(app, cb) {
   this.getLoggedUser((err, user) => {
-    if (err) return cb(err)
-
-    if (!user) return cb(new Error('User not found'))
+    if (err || !user) return cb(true)
 
     this.authorizator.call(this, user, app, cb)
   })
 }
 
 Server.prototype.getLoggedUser = function(cb) {
-  const cookie_value = this.cookie.get(this.cookie_name)
+  const cookie_value = this.cookie.get()
 
   if (!cookie_value) {
     return cb(null, null);
   }
 
-  this.deserializer.call(this, cookie_value, cb)
+  try {
+    this.deserializer.call(this, cookie_value, cb)
+  } catch(err) {
+    cb(err)
+  }
 }
 
 Server.prototype.send = function(res, opts) {
   const info = this.apps[opts.app]
 
   if (!info) return res.redirect('back')
-  if (!opts.user) return res.redirect(info.redirect)
 
-  let serialized_user = null
-
-  try {
-    serialized_user = JSON.stringify(opts.user)
-  } catch(err) {
-    return res.redirect(info.redirect)
-  }
-
-  let query = {
+  const query = {
     verify: opts.params.verify || '',
-    user: this.crypter.encrypt(serialized_user, info.public_key)
+    user: this.dhke.encrypt(opts.app, JSON.stringify(opts.user))
   }
 
   res.redirect(info.redirect + '?' + querystring.stringify(query))
