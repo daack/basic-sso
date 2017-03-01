@@ -6,6 +6,7 @@ Basic authentication mechanism for Single sign-on
 * [Example](#example)
 
 <a name="install"></a>
+
 ## Install
 
 To install basic-sso, simply use npm:
@@ -15,27 +16,33 @@ npm install basic-sso --save
 ```
 
 <a name="example"></a>
+
 ## Example
 
 ### Server
+
 ```javascript
 const app = require('express')()
-const sso = Sso('secret_shared_key')
+const Sso = require('basic-sso')
+
+const sso = Sso({
+	prime: 'diffie_hellman_prime',
+	listen: 8001 // port for key exchange
+})
 
 const server = sso.server({
-  loginPath: 'login',
-  cookie: {
-    keylist: ['key1', 'key2']
-  }
+	cookie: {
+		secret: 'password',
+		name: 'sso_signed',
+		keylist: ['foo', 'bar']
+	}
 })
 
-app.use(server.cookieParser())
-
-server.add('test_app', {
-  redirect: 'http://foo.bar'
+server.addApp('client', {
+	redirect: 'http://127.0.0.1:3000/landing'
 })
 
-server.use('auth', (username, password, done) => {
+server.strategy('strategy', (username, password, done) => {
   const user = User.findByUsername(username)
 
   // Compare password
@@ -63,28 +70,40 @@ server.deserializeUser((id, done) => {
 })
 
 // Endpoint to authenticate user
-app.get('/auth', server.authenticate());
+app.get('/auth', server.authenticate(), (req, res, next) => {
+	// render login page
+})
 // Endpoint to login user
-app.post('/login', server.logIn('auth'));
+app.post('/login', server.logIn('strategy'))
 ```
 
 ### Client
+
 ```javascript
 const app = require('express')()
-const sso = Sso('secret_shared_key')
+const Sso = require('basic-sso')
+
+const sso = Sso({
+	prime: 'diffie_hellman_prime',
+	listen: 8002 // port for key exchange
+})
 
 const client = sso.client({
-  app: 'test',
-  verify: 'verify',
-  server: 'server_url',
-  secure: true
+	verify: 'verify',
+	server: {
+		name: 'server',
+		host: '127.0.0.1',
+		port: 3000,
+		dh_port: 8001,
+		auth_path: '/auth'
+	}
 })
 
 app.get('/login', (req, res) => {
-  client.logIn(res)
-});
+	client.redirectLogIn(res)
+})
 
-app.get('/return', client.user(), (req, res) => {
-  console.log(req.user)
-});
+app.get('/landing', client.landing(), (req, res) => {
+	console.log(req.user)
+})
 ```
