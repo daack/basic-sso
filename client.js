@@ -19,7 +19,7 @@ function Client(app, opts, dhke) {
 Client.prototype.redirectLogIn = function(res) {
   this
   .dhke
-  .initalizeSession(this.server.name, (secret) => {
+  .initalizeSession(this.server.name, (err, secret) => {
     const query = {
       app: btoa(this.app),
       verify: this.verify
