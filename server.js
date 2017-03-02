@@ -91,6 +91,18 @@ Server.prototype.logIn = function(strategy, opts) {
   }
 }
 
+Server.prototype.logOut = function(redirect) {
+  return (req, res, next) => {
+    this.cookie.delete()
+
+    if (redirect) {
+      return res.redirect(redirect)
+    }
+
+    next()
+  }
+}
+
 Server.prototype.addApp = function(app, info) {
   if (typeof app != 'object') {
     let tmp = {}
