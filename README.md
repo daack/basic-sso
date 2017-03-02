@@ -25,7 +25,7 @@ npm install basic-sso --save
 const app = require('express')()
 const Sso = require('basic-sso')
 
-const sso = Sso({
+const sso = Sso('server_unique_app_name', {
 	prime: 'diffie_hellman_prime',
 	listen: 8001 // port for key exchange
 })
@@ -33,8 +33,10 @@ const sso = Sso({
 const server = sso.server({
 	cookie: {
 		secret: 'password',
+		keylist: ['foo', 'bar'],
 		name: 'sso_signed',
-		keylist: ['foo', 'bar']
+		secure: false,
+		httpOnly: true
 	}
 })
 
@@ -83,7 +85,7 @@ app.post('/login', server.logIn('strategy'))
 const app = require('express')()
 const Sso = require('basic-sso')
 
-const sso = Sso({
+const sso = Sso('client_unique_app_name', {
 	prime: 'diffie_hellman_prime',
 	listen: 8002 // port for key exchange
 })

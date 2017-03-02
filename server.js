@@ -11,18 +11,16 @@ function Server(dhke, opts) {
   }
 
   this.dhke = dhke
-  this.cookie = Cookie(opts.cookie.name || 'sso_signed', {
-    secret: opts.cookie.secret,
-    crypter: this.dhke.crypter,
-    keylist: opts.cookie.keylist
-  })
+  this.cookie = Cookie(this.dhke.crypter, opts.cookie)
 
   this.strategies = {}
   this.apps = {}
 
   this.serializer = () => { throw new Error('serializeUser not defined') }
   this.deserializer = () => { throw new Error('deserializeUser not defined') }
-  this.authorizator = () => { throw new Error('authorizeUser not defined') }
+  this.authorizator = (user, app, done) => {
+    done(null, user)
+  }
 }
 
 Server.prototype.authenticate = function() {
@@ -77,9 +75,11 @@ Server.prototype.logIn = function(strategy, opts) {
       this.serializer.call(this, user, (err, serialized) => {
         if (err) return next(err)
 
-        this.cookie.set(serialized)
-
         this.authorizator.call(this, user, app, (err, user) => {
+          if (err) return next(err)
+
+          this.cookie.set(serialized)
+
           this.send(res, {
             app: app,
             user: user,
@@ -137,7 +137,7 @@ Server.prototype.deserializeUser = function(cb) {
 
 Server.prototype.getAuthenticatedUser = function(app, cb) {
   this.getLoggedUser((err, user) => {
-    if (err || !user) return cb(true)
+    if (err || !user) return cb(new Error('User not logged'))
 
     this.authorizator.call(this, user, app, cb)
   })
