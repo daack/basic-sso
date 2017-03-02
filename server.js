@@ -67,6 +67,10 @@ Server.prototype.logIn = function(strategy, opts) {
     const username = body[opts.usernameField || 'username']
     const password = body[opts.passwordField || 'password']
 
+    if (!this.apps[app]) {
+      return res.status(500).end()
+    }
+
     authenticator.call(this, username, password, (err, user) => {
       if (err || !user) {
         return res.redirect('back')
@@ -172,7 +176,9 @@ Server.prototype.getLoggedUser = function(cb) {
 Server.prototype.send = function(res, opts) {
   const info = this.apps[opts.app]
 
-  if (!info) return res.redirect('back')
+  if (!info) {
+    return res.status(500).end()
+  }
 
   const query = {
     verify: opts.params.verify || '',
