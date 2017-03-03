@@ -2,6 +2,7 @@
 
 const atob = require('atob')
 const querystring = require('querystring')
+const async = require('async')
 
 const Cookie = require('./lib/cookie')
 
@@ -24,75 +25,105 @@ function Server(dhke, opts) {
 }
 
 Server.prototype.authenticate = function() {
-  return (req, res, next) => {
-    this.cookie.initializeRequest(req, res)
+  return [
+    (req, res, next) => {
+      this.cookie.initializeRequest(req, res)
 
-    const query = req.query || {}
+      req.sso = {}
 
-    if (!query.app) {
-      return res.redirect('back')
-    }
+      const query = req.query || {}
 
-    const app = atob(decodeURIComponent(query.app))
-
-    this.getAuthenticatedUser(app, (err, user) => {
-      if (err || !user) {
-        return next()
-      }
-
-      this.send(res, {
-        app: app,
-        user: user,
-        params: query
-      })
-    })
-  }
-}
-
-Server.prototype.logIn = function(strategy, opts) {
-  const authenticator = this.strategies[strategy]
-
-  if (!authenticator) {
-    throw new Error('Missing ' + strategy + ' strategy')
-  }
-
-  opts = opts || {}
-
-  return (req, res, next) => {
-    this.cookie.initializeRequest(req, res)
-
-    const body = req.body || {}
-    const app = atob(decodeURIComponent(body.app))
-
-    const username = body[opts.usernameField || 'username']
-    const password = body[opts.passwordField || 'password']
-
-    if (!this.apps[app]) {
-      return res.status(500).end()
-    }
-
-    authenticator.call(this, username, password, (err, user) => {
-      if (err || !user) {
+      if (!query.app) {
         return res.redirect('back')
       }
 
-      this.serializer.call(this, user, (err, serialized) => {
-        if (err) return next(err)
+      if (!(req.sso.app_name = this.decodeApp(query.app))) {
+        return res.status(500).end()
+      }
 
-        this.authorizator.call(this, user, app, (err, user) => {
-          if (err) return next(err)
+      next()
+    },
+    (req, res, next) => {
+      this.getLoggedUser((err, user) => {
+        req.sso.user = user
 
-          this.cookie.set(serialized)
+        next()
+      })
+    },
+    (req, res, next) => {
+      if (!req.sso.user) {
+        return next()
+      }
 
-          this.send(res, {
-            app: app,
-            user: user,
-            params: body
-          })
+      this.authorizator.call(this, req.sso.user, req.sso.app_name, (err, user) => {
+        if (err || !user) return next()
+
+        this.send(res, {
+          app: req.sso.app_name,
+          user: req.sso.user,
+          params: req.query || {}
         })
       })
-    })
-  }
+    }
+  ]
+}
+
+Server.prototype.logIn = function(strategy, opts) {
+  opts = opts || {}
+
+  return [
+    (req, res, next) => {
+      this.cookie.initializeRequest(req, res)
+
+      req.sso = {}
+
+      const body = req.body || {}
+
+      if (!(req.sso.app_name = this.decodeApp(body.app))) {
+        return res.status(500).end()
+      }
+
+      req.sso.credentials = {
+        user: body[opts.usernameField || 'username'],
+        password: body[opts.passwordField || 'password']
+      }
+
+      next()
+    },
+    (req, res, next) => {
+      const credentials = req.sso.credentials
+
+      this.strategies[strategy].call(this, credentials.user, credentials.password, (err, user) => {
+        if (err || !user) return res.redirect('back')
+
+        req.sso.user = user
+
+        next()
+      })
+    },
+    (req, res, next) => {
+      this.serializer.call(this, req.sso.user, (err, serialized) => {
+        if (err || !serialized) return res.status(500).end()
+
+        req.sso.serialized_user = serialized
+
+        next()
+      })
+    },
+    (req, res, next) => {
+      this.authorizator.call(this, req.sso.user, req.sso.app_name, (err, user) => {
+        if (err || !user) return res.status(500).end()
+
+        this.cookie.set(req.sso.serialized_user)
+
+        this.send(res, {
+          app: req.sso.app_name,
+          user: user,
+          params: req.body || {}
+        })
+      })
+    }
+  ]
 }
 
 Server.prototype.logOut = function(redirect) {
@@ -151,14 +182,6 @@ Server.prototype.deserializeUser = function(cb) {
   return this
 }
 
-Server.prototype.getAuthenticatedUser = function(app, cb) {
-  this.getLoggedUser((err, user) => {
-    if (err || !user) return cb(new Error('User not logged'))
-
-    this.authorizator.call(this, user, app, cb)
-  })
-}
-
 Server.prototype.getLoggedUser = function(cb) {
   const cookie_value = this.cookie.get()
 
@@ -186,6 +209,12 @@ Server.prototype.send = function(res, opts) {
   }
 
   res.redirect(info.redirect + '?' + querystring.stringify(query))
+}
+
+Server.prototype.decodeApp = function(coded_app) {
+  const app = atob(decodeURIComponent(coded_app))
+
+  return this.apps.hasOwnProperty(app) ? app : null
 }
 
 module.exports = Server
