@@ -31,6 +31,7 @@ const sso = Sso('server_unique_app_name', {
 })
 
 const server = sso.server({
+	domain: 'foo.com',
 	cookie: {
 		secret: 'password',
 		keylist: ['foo', 'bar'],

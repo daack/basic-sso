@@ -2,8 +2,9 @@
 
 const http = require('http')
 const url = require('url')
-const btoa = require('btoa')
 const querystring = require('querystring')
+
+const utils = require('./lib/utils')
 
 function Client(app, opts, dhke) {
   if (!(this instanceof Client)) {
@@ -21,7 +22,7 @@ Client.prototype.redirectLogIn = function(res) {
   .dhke
   .initalizeSession(this.server.name, (err, secret) => {
     const query = {
-      app: btoa(this.app),
+      app: utils.encryptApp(this.app),
       verify: this.verify
     }
 
