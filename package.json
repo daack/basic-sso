@@ -1,6 +1,6 @@
 {
   "name": "basic-sso",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Basic authentication mechanism for Single sign-on",
   "main": "sso.js",
   "scripts": {

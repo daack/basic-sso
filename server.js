@@ -76,6 +76,10 @@ Server.prototype.authenticate = function() {
 Server.prototype.logIn = function(strategy, opts) {
   opts = opts || {}
 
+  if (!(strategy = this.strategies[strategy])) {
+    throw new Error('Strategy ' + strategy + ' does not exist')
+  }
+
   return (req, res, next) => {
     this.cookie.initializeRequest(req, res)
 
@@ -83,10 +87,6 @@ Server.prototype.logIn = function(strategy, opts) {
     let app_name = null
 
     if (!(app_name = this.decodeApp(body.app))) {
-      return res.status(500).end()
-    }
-
-    if (!(strategy = this.strategies[strategy])) {
       return res.status(500).end()
     }
 
