@@ -1,6 +1,6 @@
 {
   "name": "basic-sso",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Basic authentication mechanism for Single sign-on",
   "main": "sso.js",
   "scripts": {
@@ -25,7 +25,7 @@
     "atob": "^2.0.3",
     "btoa": "^1.1.2",
     "cookies": "^0.7.0",
-    "diffie-hellman-key-exchange": "^1.2.1",
+    "diffie-hellman-key-exchange": "^1.2.2",
     "keygrip": "^1.0.1"
   }
 }

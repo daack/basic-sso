@@ -21,6 +21,10 @@ Client.prototype.redirectLogIn = function(res) {
   this
   .dhke
   .initalizeSession(this.server.name, (err, secret) => {
+    if (err) {
+      return res.status(500).end()
+    }
+
     const query = {
       app: utils.encryptApp(this.app),
       verify: this.verify
