@@ -36,7 +36,7 @@ Server.prototype.authenticate = function() {
     let app_name = null
 
     if (!query.app) {
-      return res.redirect('back')
+      return res.status(500).end()
     }
 
     if (!(app_name = this.decodeApp(query.app))) {
