@@ -6,6 +6,10 @@ const async = require('async')
 const utils = require('./lib/utils')
 const Cookie = require('./lib/cookie')
 
+// errors
+const BadRequest = require('./errors/bad-request')
+const Unauthorized = require('./errors/unauthorized')
+
 function Server(dhke, opts) {
   if (!(this instanceof Server)) {
     return new Server(dhke, opts)
@@ -36,11 +40,11 @@ Server.prototype.authenticate = function() {
     let app_name = null
 
     if (!query.app) {
-      return res.status(500).end()
+      return next(new BadRequest('Missing app param'))
     }
 
     if (!(app_name = this.decodeApp(query.app))) {
-      return res.status(500).end()
+      return next(new BadRequest('Missing app param'))
     }
 
     this
@@ -53,7 +57,7 @@ Server.prototype.authenticate = function() {
           }
 
           if (!user) {
-            return reject(null)
+            return reject(new Unauthorized())
           }
 
           resolve(user)
@@ -87,7 +91,7 @@ Server.prototype.logIn = function(strategy, opts) {
     let app_name = null
 
     if (!(app_name = this.decodeApp(body.app))) {
-      return res.status(500).end()
+      return next(new BadRequest('Missing app param'))
     }
 
     utils.promisify((resolve, reject) => {
@@ -97,7 +101,7 @@ Server.prototype.logIn = function(strategy, opts) {
         }
 
         if (!user) {
-          return reject(null)
+          return reject(new Unauthorized())
         }
 
         resolve(user)
@@ -111,7 +115,7 @@ Server.prototype.logIn = function(strategy, opts) {
           }
 
           if (!serialized) {
-            return reject(null)
+            return reject(new Unauthorized())
           }
 
           resolve([user, serialized])
@@ -126,7 +130,7 @@ Server.prototype.logIn = function(strategy, opts) {
           }
 
           if (!user) {
-            return reject(null)
+            return reject(new Unauthorized())
           }
 
           this.cookie.set(serialized)

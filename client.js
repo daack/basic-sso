@@ -25,18 +25,22 @@ Client.prototype.redirectLogIn = function(res) {
       return res.status(500).end()
     }
 
-    const query = {
+    const query = querystring.stringify({
       app: utils.encryptApp(this.app),
       verify: this.verify
-    }
+    })
 
-    res.redirect(url.format({
-      protocol: this.server.protocol || 'http:',
-      hostname: this.server.host,
-      port: this.server.port || 80,
-      pathname: this.server.auth_path,
-      search: querystring.stringify(query)
-    }))
+    if (this.server.url) {
+      res.redirect(this.server.url + '?' + query)
+    } else {
+      res.redirect(url.format({
+        protocol: this.server.protocol || 'http:',
+        hostname: this.server.host,
+        port: this.server.port || 80,
+        pathname: this.server.auth_path,
+        search: query
+      }))
+    }
   })
 }
 
